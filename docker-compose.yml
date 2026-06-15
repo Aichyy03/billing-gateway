@@ -1,0 +1,44 @@
+version: '3.8'
+
+services:
+  # 1. Bellek İçi Veri Deposu (Redis)
+  redis-server:
+    image: redis:7-alpine
+    container_name: gateway_redis
+    ports:
+      - "6379:6379"
+    networks:
+      - billing_network
+
+  # 2. Sahte Faturalama Servisi (Upstream Service)
+  mock_billing_service:
+    image: python:3.10-slim
+    container_name: mock_billing_app
+    volumes:
+      - ./mock_billing_service:/app
+    working_dir: /app
+    command: sh -c "pip install -r requirements.txt && uvicorn main:app --host 0.0.0.0 --port 8000"
+    ports:
+      - "8001:8000"
+    networks:
+      - billing_network
+
+  # 3. API Gateway (Sistem Giriş Kapısı)
+  api_gateway:
+    image: python:3.10-slim
+    container_name: api_gateway_app
+    volumes:
+      - ./gateway:/app
+    working_dir: /app
+    command: sh -c "pip install -r requirements.txt && uvicorn main:app --host 0.0.0.0 --port 8000"
+    ports:
+      - "8000:8000"
+    depends_on:
+      - redis-server
+      - mock_billing_service
+    networks:
+      - billing_network
+
+networks:
+  billing_network:
+    driver: bridge
